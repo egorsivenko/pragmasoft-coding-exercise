@@ -18,6 +18,8 @@ import java.io.IOException;
 @Component
 public class RateLimitFilter implements Filter {
 
+    private static final String ERROR_MESSAGE = "Request rejected. Cause: rate limit exceeded";
+
     private final RateLimitService rateLimitService;
 
     public RateLimitFilter(RateLimitService rateLimitService) {
@@ -33,7 +35,7 @@ public class RateLimitFilter implements Filter {
             chain.doFilter(request, response);
         } else {
             HttpServletResponse resp = (HttpServletResponse) response;
-            resp.sendError(HttpStatus.TOO_MANY_REQUESTS.value(), "Request rejected. Cause: rate limit exceeded");
+            resp.sendError(HttpStatus.TOO_MANY_REQUESTS.value(), ERROR_MESSAGE);
         }
     }
 }

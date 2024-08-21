@@ -13,9 +13,10 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 public class RateLimitService {
 
+    private static final int CAPACITY = 10;
+    private static final long REFILL_PERIOD = 10000;
+
     private final ConcurrentHashMap<String, TokenBucket> tokenBuckets = new ConcurrentHashMap<>();
-    private final int capacity = 10;
-    private final long refillPeriod = 10000;
     private final RequestNetworkClientKeyExtractor keyExtractor;
 
     public RateLimitService(RequestNetworkClientKeyExtractor keyExtractor) {
@@ -31,7 +32,7 @@ public class RateLimitService {
     public boolean isAllowed(HttpServletRequest request) {
         String clientKey = keyExtractor.extractClientKey(request);
 
-        TokenBucket tokenBucket = tokenBuckets.computeIfAbsent(clientKey, k -> new TokenBucket(capacity, refillPeriod));
+        TokenBucket tokenBucket = tokenBuckets.computeIfAbsent(clientKey, k -> new TokenBucket(CAPACITY, REFILL_PERIOD));
         return tokenBucket.isAllowed();
     }
 }
