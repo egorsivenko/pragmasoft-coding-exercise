@@ -1,7 +1,7 @@
 package com.example.pragmasoft.exercise.ratelimit;
 
 import com.example.pragmasoft.exercise.bucket.TokenBucket;
-import com.example.pragmasoft.exercise.extractor.RequestNetworkClientKeyExtractor;
+import com.example.pragmasoft.exercise.extractor.RequestHeaderClientKeyExtractor;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -24,12 +24,12 @@ public class RateLimitService {
      * The main operations used would be GET, SET, EXISTS, and EXPIRE.
      */
     private final ConcurrentHashMap<String, TokenBucket> tokenBuckets = new ConcurrentHashMap<>();
-    private final RequestNetworkClientKeyExtractor keyExtractor;
+    private final RequestHeaderClientKeyExtractor keyExtractor;
 
     private final int capacity;
     private final long refillPeriod;
 
-    public RateLimitService(RequestNetworkClientKeyExtractor keyExtractor,
+    public RateLimitService(RequestHeaderClientKeyExtractor keyExtractor,
                             @Value("${rate.limit.capacity}") int capacity,
                             @Value("${rate.limit.refillPeriod}") long refillPeriod) {
         this.keyExtractor = keyExtractor;

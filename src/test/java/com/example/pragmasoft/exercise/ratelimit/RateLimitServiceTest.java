@@ -1,6 +1,6 @@
 package com.example.pragmasoft.exercise.ratelimit;
 
-import com.example.pragmasoft.exercise.extractor.RequestNetworkClientKeyExtractor;
+import com.example.pragmasoft.exercise.extractor.RequestHeaderClientKeyExtractor;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,7 +19,7 @@ import static org.mockito.Mockito.when;
 class RateLimitServiceTest {
 
     private RateLimitService rateLimitService;
-    private RequestNetworkClientKeyExtractor keyExtractor;
+    private RequestHeaderClientKeyExtractor keyExtractor;
     private HttpServletRequest request;
 
     @Value("${rate.limit.capacity}")
@@ -30,7 +30,7 @@ class RateLimitServiceTest {
 
     @BeforeEach
     void setUp() {
-        keyExtractor = mock(RequestNetworkClientKeyExtractor.class);
+        keyExtractor = mock(RequestHeaderClientKeyExtractor.class);
         rateLimitService = new RateLimitService(keyExtractor, capacity, refillPeriod);
         request = mock(HttpServletRequest.class);
     }
