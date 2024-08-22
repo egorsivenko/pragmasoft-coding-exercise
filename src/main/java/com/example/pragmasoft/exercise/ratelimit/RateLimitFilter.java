@@ -1,41 +1,66 @@
 package com.example.pragmasoft.exercise.ratelimit;
 
-import jakarta.servlet.Filter;
+import com.example.pragmasoft.exercise.ratelimit.dto.RateLimitError;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
-import jakarta.servlet.ServletRequest;
-import jakarta.servlet.ServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Filter that applies rate limiting to incoming requests using the {@link RateLimitService}.
  */
 @Component
-public class RateLimitFilter implements Filter {
-
-    private static final String ERROR_MESSAGE = "Request rejected. Cause: rate limit exceeded";
+public class RateLimitFilter extends OncePerRequestFilter {
 
     private final RateLimitService rateLimitService;
+    private final ObjectMapper objectMapper;
 
-    public RateLimitFilter(RateLimitService rateLimitService) {
+    private final int capacity;
+    private final long refillPeriod;
+
+    public RateLimitFilter(RateLimitService rateLimitService,
+                           ObjectMapper objectMapper,
+                           @Value("${rate.limit.capacity}") int capacity,
+                           @Value("${rate.limit.refillPeriod}") long refillPeriod) {
         this.rateLimitService = rateLimitService;
+        this.objectMapper = objectMapper;
+        this.capacity = capacity;
+        this.refillPeriod = refillPeriod;
     }
 
     /**
      * Filters requests to apply rate limiting, responding with 429 status code if the limit is exceeded.
      */
     @Override
-    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain) throws IOException, ServletException {
-        if (rateLimitService.isAllowed((HttpServletRequest) request)) {
-            chain.doFilter(request, response);
+    protected void doFilterInternal(HttpServletRequest request,
+                                    HttpServletResponse response,
+                                    FilterChain filterChain) throws ServletException, IOException {
+        if (rateLimitService.isAllowed(request)) {
+            filterChain.doFilter(request, response);
         } else {
-            HttpServletResponse resp = (HttpServletResponse) response;
-            resp.sendError(HttpStatus.TOO_MANY_REQUESTS.value(), ERROR_MESSAGE);
+            response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
+            response.setContentType("application/json");
+
+            long secondsToWait = TimeUnit.MILLISECONDS.toSeconds(refillPeriod);
+            response.setHeader("Retry-After", String.valueOf(secondsToWait));
+
+            RateLimitError error = new RateLimitError(
+                    "rate_limit_exceeded",
+                    String.format(
+                            "Exceeded the maximum number of requests - %d requests per %d seconds. Try again later.",
+                            capacity, secondsToWait
+                    )
+            );
+            response.getWriter().write(objectMapper.writeValueAsString(error));
+            response.getWriter().flush();
         }
     }
 }
