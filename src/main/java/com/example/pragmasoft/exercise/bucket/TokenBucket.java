@@ -14,11 +14,12 @@ public class TokenBucket {
 
     private final AtomicInteger tokens;
     private final AtomicLong lastRefillTime;
+    private final AtomicLong lastRequestTime;
 
     /**
      * Constructs a new TokenBucket with the specified capacity and refill period.
      *
-     * @param capacity the maximum number of tokens the bucket can hold
+     * @param capacity     the maximum number of tokens the bucket can hold
      * @param refillPeriod the time (in milliseconds) after which the bucket should be refilled
      */
     public TokenBucket(int capacity, long refillPeriod) {
@@ -26,6 +27,7 @@ public class TokenBucket {
         this.refillPeriod = refillPeriod;
         this.tokens = new AtomicInteger(capacity);
         this.lastRefillTime = new AtomicLong(System.currentTimeMillis());
+        this.lastRequestTime = new AtomicLong(System.currentTimeMillis());
     }
 
     /**
@@ -37,6 +39,7 @@ public class TokenBucket {
         refillBucket();
         if (tokens.get() > 0) {
             tokens.decrementAndGet();
+            lastRequestTime.set(System.currentTimeMillis());
             return true;
         }
         return false;
@@ -53,5 +56,14 @@ public class TokenBucket {
             tokens.set(capacity);
             lastRefillTime.set(currentTime);
         }
+    }
+
+    /**
+     * Returns the timestamp of the last successful token consumption request.
+     *
+     * @return the time in milliseconds of the last request that successfully consumed a token
+     */
+    public long getLastRequestTime() {
+        return lastRequestTime.get();
     }
 }

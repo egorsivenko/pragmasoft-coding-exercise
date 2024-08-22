@@ -28,10 +28,13 @@ class RateLimitServiceTest {
     @Value("${rate.limit.refillPeriod}")
     private long refillPeriod;
 
+    @Value("${rate.limit.expirationTime}")
+    private long expirationTime;
+
     @BeforeEach
     void setUp() {
         keyExtractor = mock(RequestHeaderClientKeyExtractor.class);
-        rateLimitService = new RateLimitService(keyExtractor, capacity, refillPeriod);
+        rateLimitService = new RateLimitService(keyExtractor, capacity, refillPeriod, expirationTime);
         request = mock(HttpServletRequest.class);
     }
 

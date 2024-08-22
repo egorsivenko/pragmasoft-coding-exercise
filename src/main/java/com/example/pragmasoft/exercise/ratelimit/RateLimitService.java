@@ -4,6 +4,7 @@ import com.example.pragmasoft.exercise.bucket.TokenBucket;
 import com.example.pragmasoft.exercise.extractor.RequestHeaderClientKeyExtractor;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.util.concurrent.ConcurrentHashMap;
@@ -28,13 +29,16 @@ public class RateLimitService {
 
     private final int capacity;
     private final long refillPeriod;
+    private final long expirationTime;
 
     public RateLimitService(RequestHeaderClientKeyExtractor keyExtractor,
                             @Value("${rate.limit.capacity}") int capacity,
-                            @Value("${rate.limit.refillPeriod}") long refillPeriod) {
+                            @Value("${rate.limit.refillPeriod}") long refillPeriod,
+                            @Value("${rate.limit.expirationTime}") long expirationTime) {
         this.keyExtractor = keyExtractor;
         this.capacity = capacity;
         this.refillPeriod = refillPeriod;
+        this.expirationTime = expirationTime;
     }
 
     /**
@@ -48,5 +52,15 @@ public class RateLimitService {
 
         TokenBucket tokenBucket = tokenBuckets.computeIfAbsent(clientKey, k -> new TokenBucket(capacity, refillPeriod));
         return tokenBucket.isAllowed();
+    }
+
+    @Scheduled(fixedDelayString = "${rate.limit.cleanupInterval}")
+    public void cleanupStaleBuckets() {
+        long currentTime = System.currentTimeMillis();
+
+        tokenBuckets.entrySet().removeIf(entry -> {
+            TokenBucket bucket = entry.getValue();
+            return currentTime - bucket.getLastRequestTime() > expirationTime;
+        });
     }
 }
