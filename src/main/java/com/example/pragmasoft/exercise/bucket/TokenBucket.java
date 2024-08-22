@@ -2,6 +2,7 @@ package com.example.pragmasoft.exercise.bucket;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Implementation of the token bucket algorithm, used for rate limiting.
@@ -15,6 +16,8 @@ public class TokenBucket {
     private final AtomicInteger tokens;
     private final AtomicLong lastRefillTime;
     private final AtomicLong lastRequestTime;
+
+    private final ReentrantLock lock = new ReentrantLock();
 
     /**
      * Constructs a new TokenBucket with the specified capacity and refill period.
@@ -36,13 +39,18 @@ public class TokenBucket {
      * @return true if the action is allowed, false if the token bucket is empty
      */
     public boolean isAllowed() {
-        refillBucket();
-        if (tokens.get() > 0) {
-            tokens.decrementAndGet();
-            lastRequestTime.set(System.currentTimeMillis());
-            return true;
+        lock.lock();
+        try {
+            refillBucket();
+            if (tokens.get() > 0) {
+                tokens.decrementAndGet();
+                lastRequestTime.set(System.currentTimeMillis());
+                return true;
+            }
+            return false;
+        } finally {
+            lock.unlock();
         }
-        return false;
     }
 
     /**
