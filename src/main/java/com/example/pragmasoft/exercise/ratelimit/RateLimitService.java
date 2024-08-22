@@ -3,6 +3,7 @@ package com.example.pragmasoft.exercise.ratelimit;
 import com.example.pragmasoft.exercise.bucket.TokenBucket;
 import com.example.pragmasoft.exercise.extractor.RequestNetworkClientKeyExtractor;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.concurrent.ConcurrentHashMap;
@@ -12,9 +13,6 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @Service
 public class RateLimitService {
-
-    private static final int CAPACITY = 10;
-    private static final long REFILL_PERIOD = 10000;
 
     /**
      * In this case, the thread-safe ConcurrentHashMap is used, but to improve the performance and scalability,
@@ -28,8 +26,15 @@ public class RateLimitService {
     private final ConcurrentHashMap<String, TokenBucket> tokenBuckets = new ConcurrentHashMap<>();
     private final RequestNetworkClientKeyExtractor keyExtractor;
 
-    public RateLimitService(RequestNetworkClientKeyExtractor keyExtractor) {
+    private final int capacity;
+    private final long refillPeriod;
+
+    public RateLimitService(RequestNetworkClientKeyExtractor keyExtractor,
+                            @Value("${rate.limit.capacity}") int capacity,
+                            @Value("${rate.limit.refillPeriod}") long refillPeriod) {
         this.keyExtractor = keyExtractor;
+        this.capacity = capacity;
+        this.refillPeriod = refillPeriod;
     }
 
     /**
@@ -41,7 +46,7 @@ public class RateLimitService {
     public boolean isAllowed(HttpServletRequest request) {
         String clientKey = keyExtractor.extractClientKey(request);
 
-        TokenBucket tokenBucket = tokenBuckets.computeIfAbsent(clientKey, k -> new TokenBucket(CAPACITY, REFILL_PERIOD));
+        TokenBucket tokenBucket = tokenBuckets.computeIfAbsent(clientKey, k -> new TokenBucket(capacity, refillPeriod));
         return tokenBucket.isAllowed();
     }
 }
