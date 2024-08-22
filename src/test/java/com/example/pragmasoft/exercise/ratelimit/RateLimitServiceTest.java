@@ -28,13 +28,16 @@ class RateLimitServiceTest {
     @Value("${rate.limit.refillPeriod}")
     private long refillPeriod;
 
+    @Value("${rate.limit.tokensPerPeriod}")
+    private int tokensPerPeriod;
+
     @Value("${rate.limit.expirationTime}")
     private long expirationTime;
 
     @BeforeEach
     void setUp() {
         keyExtractor = mock(RequestHeaderClientKeyExtractor.class);
-        rateLimitService = new RateLimitService(keyExtractor, capacity, refillPeriod, expirationTime);
+        rateLimitService = new RateLimitService(keyExtractor, capacity, refillPeriod, tokensPerPeriod, expirationTime);
         request = mock(HttpServletRequest.class);
     }
 
@@ -42,7 +45,7 @@ class RateLimitServiceTest {
     void shouldAllowRequestWhenTokensAvailable() {
         when(keyExtractor.extractClientKey(request)).thenReturn("127.0.0.1");
 
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < capacity; i++) {
             assertTrue(rateLimitService.isAllowed(request));
         }
     }
@@ -51,7 +54,7 @@ class RateLimitServiceTest {
     void shouldBlockRequestWhenTokensDepleted() {
         when(keyExtractor.extractClientKey(request)).thenReturn("127.0.0.1");
 
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < capacity; i++) {
             rateLimitService.isAllowed(request);
         }
         assertFalse(rateLimitService.isAllowed(request));
@@ -61,11 +64,28 @@ class RateLimitServiceTest {
     void shouldRefillTokensAfterRefillPeriod() throws InterruptedException {
         when(keyExtractor.extractClientKey(request)).thenReturn("127.0.0.1");
 
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < capacity; i++) {
             rateLimitService.isAllowed(request);
         }
-        Thread.sleep(10000); // Simulate waiting for the refill period
+        Thread.sleep(refillPeriod); // Simulate waiting for the refill period
 
-        assertTrue(rateLimitService.isAllowed(request));
+        for (int i = 0; i < tokensPerPeriod; i++) {
+            assertTrue(rateLimitService.isAllowed(request));
+        }
+    }
+
+    @Test
+    void shouldBlockRequestWhenTokensDepletedAfterRefill() throws InterruptedException {
+        when(keyExtractor.extractClientKey(request)).thenReturn("127.0.0.1");
+
+        for (int i = 0; i < capacity; i++) {
+            rateLimitService.isAllowed(request);
+        }
+        Thread.sleep(refillPeriod); // Simulate waiting for the refill period
+
+        for (int i = 0; i < tokensPerPeriod; i++) {
+            rateLimitService.isAllowed(request);
+        }
+        assertFalse(rateLimitService.isAllowed(request));
     }
 }

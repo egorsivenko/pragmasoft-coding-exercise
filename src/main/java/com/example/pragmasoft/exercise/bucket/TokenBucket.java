@@ -5,13 +5,16 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * Implementation of the token bucket algorithm, used for rate limiting.
- * Refills a fixed number of tokens at a defined rate, and allows or denies an action based on token availability.
+ * Implementation of the token bucket algorithm used for rate limiting.
+ * Manages a bucket with a fixed capacity, refilling it with tokens at a specified rate.
+ * Each token represents a permit for an action, and the action is allowed or denied based on token availability.
+ * The class is thread-safe, ensuring correct behavior in concurrent environments.
  */
 public class TokenBucket {
 
     private final int capacity;
     private final long refillPeriod;
+    private final int tokensPerPeriod;
 
     private final AtomicInteger tokens;
     private final AtomicLong lastRefillTime;
@@ -20,14 +23,16 @@ public class TokenBucket {
     private final ReentrantLock lock = new ReentrantLock();
 
     /**
-     * Constructs a new TokenBucket with the specified capacity and refill period.
+     * Constructs a new TokenBucket with the specified capacity, refill period and tokens per period.
      *
-     * @param capacity     the maximum number of tokens the bucket can hold
-     * @param refillPeriod the time (in milliseconds) after which the bucket should be refilled
+     * @param capacity        the maximum number of tokens the bucket can hold
+     * @param refillPeriod    the time in milliseconds after which the bucket should be refilled
+     * @param tokensPerPeriod the number of tokens to add to the bucket after each refill period
      */
-    public TokenBucket(int capacity, long refillPeriod) {
+    public TokenBucket(int capacity, long refillPeriod, int tokensPerPeriod) {
         this.capacity = capacity;
         this.refillPeriod = refillPeriod;
+        this.tokensPerPeriod = tokensPerPeriod;
         this.tokens = new AtomicInteger(capacity);
         this.lastRefillTime = new AtomicLong(System.currentTimeMillis());
         this.lastRequestTime = new AtomicLong(System.currentTimeMillis());
@@ -55,13 +60,17 @@ public class TokenBucket {
 
     /**
      * Refills the bucket with tokens if the refill period has elapsed since the last refill.
+     * The number of tokens added is calculated based on the time elapsed and the tokens per period.
+     * If multiple refill periods have passed, multiple tokens will be added, up to the bucket's capacity.
      */
     private void refillBucket() {
         long currentTime = System.currentTimeMillis();
-        long periodSinceLastRefill = currentTime - lastRefillTime.get();
+        long elapsedTime = currentTime - lastRefillTime.get();
+        long elapsedPeriods = elapsedTime / refillPeriod;
+        int tokensToAdd = (int) (elapsedPeriods * tokensPerPeriod);
 
-        if (periodSinceLastRefill >= refillPeriod) {
-            tokens.set(capacity);
+        if (tokensToAdd > 0) {
+            tokens.set(Math.min(tokens.addAndGet(tokensToAdd), capacity));
             lastRefillTime.set(currentTime);
         }
     }
