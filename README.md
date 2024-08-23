@@ -13,15 +13,13 @@ This document provides usage instructions for the Rate Limiter implemented using
 First, clone the project from the GitHub repository:
 ```
 $ git clone https://github.com/egorsivenko/pragmasoft-coding-exercise.git
-$ cd <local-repo-directory>
 ```
 
 ### Step 2: Configure Application Properties
 Customize the rate limiter by setting the following properties in `application.properties`:
 ```
-rate.limit.capacity=30            # Maximum number of tokens in each bucket
+rate.limit.capacity=100           # Maximum number of tokens in each bucket
 rate.limit.refillPeriod=10000     # Refill period in milliseconds
-rate.limit.tokensPerPeriod=10     # Number of tokens added per refill period
 rate.limit.expirationTime=60000   # Time in milliseconds before an unused bucket is removed
 rate.limit.cleanupInterval=30000  # Interval in milliseconds for cleaning up stale buckets
 ```
@@ -40,15 +38,15 @@ curl http://localhost:8080/hello
 ```
 {
   "error": "rate_limit_exceeded",
-  "message": "Exceeded the maximum number of requests - 30 requests per 10 seconds. Try again later."
+  "message": "Exceeded the maximum number of requests - 100 requests per 10 seconds. Try again later."
 }
 ```
 
 ## Testing
 The project includes unit tests for the `RateLimitService`. You can run the tests using:
 ```
-$ ./mvnw clean verify
+$ ./mvnw test
 ```
 
-## Conclusion
-The rate limiter implementation provides a robust foundation for managing HTTP request rates in a Java web application. It is easily configurable, extendable, and can be integrated into any Spring Boot project with minimal setup.
+## Acknowledgements
+This project was developed as part of a test assignment for [Pragmasoft](https://pragmasoft.com.ua/en/).
