@@ -23,12 +23,12 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private final RateLimitService rateLimitService;
     private final ObjectMapper objectMapper;
 
-    private final int capacity;
+    private final long capacity;
     private final long refillPeriod;
 
     public RateLimitFilter(RateLimitService rateLimitService,
                            ObjectMapper objectMapper,
-                           @Value("${rate.limit.capacity}") int capacity,
+                           @Value("${rate.limit.capacity}") long capacity,
                            @Value("${rate.limit.refillPeriod}") long refillPeriod) {
         this.rateLimitService = rateLimitService;
         this.objectMapper = objectMapper;

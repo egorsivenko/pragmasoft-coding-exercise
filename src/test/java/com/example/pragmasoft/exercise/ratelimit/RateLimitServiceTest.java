@@ -36,16 +36,13 @@ class RateLimitServiceTest {
     @Value("${rate.limit.refillPeriod}")
     private long refillPeriod;
 
-    @Value("${rate.limit.tokensPerPeriod}")
-    private int tokensPerPeriod;
-
     @Value("${rate.limit.expirationTime}")
     private long expirationTime;
 
     @BeforeEach
     void setUp() {
         RequestHeaderClientKeyExtractor keyExtractor = mock(RequestHeaderClientKeyExtractor.class);
-        rateLimitService = new RateLimitService(keyExtractor, capacity, refillPeriod, tokensPerPeriod, expirationTime);
+        rateLimitService = new RateLimitService(keyExtractor, capacity, refillPeriod, expirationTime);
         request = mock(HttpServletRequest.class);
         when(keyExtractor.extractClientKey(request)).thenReturn("127.0.0.1");
     }
@@ -72,7 +69,7 @@ class RateLimitServiceTest {
         }
         Thread.sleep(refillPeriod); // Simulate waiting for the refill period
 
-        for (int i = 0; i < tokensPerPeriod; i++) {
+        for (int i = 0; i < capacity; i++) {
             assertTrue(rateLimitService.isAllowed(request));
         }
     }
@@ -84,7 +81,7 @@ class RateLimitServiceTest {
         }
         Thread.sleep(refillPeriod); // Simulate waiting for the refill period
 
-        for (int i = 0; i < tokensPerPeriod; i++) {
+        for (int i = 0; i < capacity; i++) {
             rateLimitService.isAllowed(request);
         }
         assertFalse(rateLimitService.isAllowed(request));

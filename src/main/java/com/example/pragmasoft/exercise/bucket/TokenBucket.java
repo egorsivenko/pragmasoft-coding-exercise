@@ -1,8 +1,7 @@
 package com.example.pragmasoft.exercise.bucket;
 
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.ReentrantLock;
+import java.time.Duration;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Implementation of the token bucket algorithm used for rate limiting.
@@ -12,30 +11,37 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 public class TokenBucket {
 
-    private final int capacity;
-    private final long refillPeriod;
-    private final int tokensPerPeriod;
-
-    private final AtomicInteger tokens;
-    private final AtomicLong lastRefillTime;
-    private final AtomicLong lastRequestTime;
-
-    private final ReentrantLock lock = new ReentrantLock();
+    private final long capacity;
+    private final long nanosToRefillToken;
+    private final AtomicReference<State> stateReference;
 
     /**
-     * Constructs a new TokenBucket with the specified capacity, refill period and tokens per period.
-     *
-     * @param capacity        the maximum number of tokens the bucket can hold
-     * @param refillPeriod    the time in milliseconds after which the bucket should be refilled
-     * @param tokensPerPeriod the number of tokens to add to the bucket after each refill period
+     * Inner class representing the state of the token bucket.
+     * It includes the number of available tokens, the last refill time, and the last request time.
      */
-    public TokenBucket(int capacity, long refillPeriod, int tokensPerPeriod) {
+    private static final class State {
+
+        private long availableTokens;
+        private long lastRefillNanoTime;
+        private long lastRequestNanoTime;
+    }
+
+    /**
+     * Constructs a new TokenBucket with the specified capacity and refill period.
+     *
+     * @param capacity     the maximum number of tokens the bucket can hold
+     * @param refillPeriod the duration after which the bucket should be refilled
+     */
+    public TokenBucket(long capacity, Duration refillPeriod) {
         this.capacity = capacity;
-        this.refillPeriod = refillPeriod;
-        this.tokensPerPeriod = tokensPerPeriod;
-        this.tokens = new AtomicInteger(capacity);
-        this.lastRefillTime = new AtomicLong(System.currentTimeMillis());
-        this.lastRequestTime = new AtomicLong(System.currentTimeMillis());
+        this.nanosToRefillToken = refillPeriod.toNanos() / capacity;
+
+        State state = new State();
+        state.availableTokens = capacity;
+        state.lastRefillNanoTime = System.nanoTime();
+        state.lastRequestNanoTime = System.nanoTime();
+
+        this.stateReference = new AtomicReference<>(state);
     }
 
     /**
@@ -44,43 +50,51 @@ public class TokenBucket {
      * @return true if the action is allowed, false if the token bucket is empty
      */
     public boolean isAllowed() {
-        lock.lock();
-        try {
-            refillBucket();
-            if (tokens.get() > 0) {
-                tokens.decrementAndGet();
-                lastRequestTime.set(System.currentTimeMillis());
+        State newState = new State();
+
+        while (true) {
+            long now = System.nanoTime();
+            State previousState = stateReference.get();
+            newState.availableTokens = previousState.availableTokens;
+            newState.lastRefillNanoTime = previousState.lastRefillNanoTime;
+            newState.lastRequestNanoTime = previousState.lastRequestNanoTime;
+            refillBucket(newState, now);
+
+            if (newState.availableTokens < 1) {
+                return false;
+            }
+            newState.availableTokens -= 1;
+            if (stateReference.compareAndSet(previousState, newState)) {
+                newState.lastRequestNanoTime = now;
                 return true;
             }
-            return false;
-        } finally {
-            lock.unlock();
         }
     }
 
     /**
-     * Refills the bucket with tokens if the refill period has elapsed since the last refill.
-     * The number of tokens added is calculated based on the time elapsed and the tokens per period.
-     * If multiple refill periods have passed, multiple tokens will be added, up to the bucket's capacity.
-     */
-    private void refillBucket() {
-        long currentTime = System.currentTimeMillis();
-        long elapsedTime = currentTime - lastRefillTime.get();
-        long elapsedPeriods = elapsedTime / refillPeriod;
-        int tokensToAdd = (int) (elapsedPeriods * tokensPerPeriod);
-
-        if (tokensToAdd > 0) {
-            tokens.set(Math.min(tokens.addAndGet(tokensToAdd), capacity));
-            lastRefillTime.set(currentTime);
-        }
-    }
-
-    /**
-     * Returns the timestamp of the last successful token consumption request.
+     * Refills the bucket with tokens if sufficient time has elapsed since the last refill.
+     * The number of tokens added is calculated based on the time elapsed and the rate of refill.
+     * If enough time has passed to add multiple tokens, they will be added, up to the bucket's capacity.
      *
-     * @return the time in milliseconds of the last request that successfully consumed a token
+     * @param state the current state of the token bucket
+     * @param now   the current time in nanoseconds
      */
-    public long getLastRequestTime() {
-        return lastRequestTime.get();
+    private void refillBucket(State state, long now) {
+        long elapsedNanoTime = now - state.lastRefillNanoTime;
+        long tokensToRefill = elapsedNanoTime / nanosToRefillToken;
+
+        if (tokensToRefill > 0) {
+            state.availableTokens = Math.min(capacity, state.availableTokens + tokensToRefill);
+            state.lastRefillNanoTime += tokensToRefill * nanosToRefillToken;
+        }
+    }
+
+    /**
+     * Returns the timestamp of the last successful token consumption request in nanoseconds.
+     *
+     * @return the time in nanoseconds of the last request that successfully consumed a token
+     */
+    public long getLastRequestNanoTime() {
+        return stateReference.get().lastRequestNanoTime;
     }
 }
