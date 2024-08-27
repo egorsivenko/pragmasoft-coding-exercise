@@ -1,7 +1,7 @@
 package com.example.pragmasoft.exercise.ratelimit;
 
 import com.example.pragmasoft.exercise.bucket.TokenBucket;
-import com.example.pragmasoft.exercise.extractor.RequestHeaderClientKeyExtractor;
+import com.example.pragmasoft.exercise.extractor.ClientKeyExtractor;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -30,7 +30,7 @@ public class RateLimitService {
      * using the client key or authorization token for access.
      */
     private final ConcurrentHashMap<String, TokenBucket> tokenBuckets = new ConcurrentHashMap<>();
-    private final RequestHeaderClientKeyExtractor keyExtractor;
+    private final ClientKeyExtractor<String> keyExtractor;
 
     private final long capacity;
     private final Duration refillPeriod;
@@ -42,7 +42,7 @@ public class RateLimitService {
      * @param capacity     the maximum number of tokens each token bucket can hold
      * @param refillPeriod the time period in milliseconds after which tokens are added to the bucket
      */
-    public RateLimitService(RequestHeaderClientKeyExtractor keyExtractor,
+    public RateLimitService(ClientKeyExtractor<String> keyExtractor,
                             @Value("${rate.limit.capacity}") long capacity,
                             @Value("${rate.limit.refillPeriod}") long refillPeriod) {
         this.keyExtractor = keyExtractor;

@@ -1,5 +1,6 @@
 package com.example.pragmasoft.exercise.ratelimit;
 
+import com.example.pragmasoft.exercise.extractor.ClientKeyExtractor;
 import com.example.pragmasoft.exercise.extractor.RequestHeaderClientKeyExtractor;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,7 +39,7 @@ class RateLimitServiceTest {
 
     @BeforeEach
     void setUp() {
-        RequestHeaderClientKeyExtractor keyExtractor = mock(RequestHeaderClientKeyExtractor.class);
+        ClientKeyExtractor<String> keyExtractor = mock(RequestHeaderClientKeyExtractor.class);
         rateLimitService = new RateLimitService(keyExtractor, capacity, refillPeriod);
         request = mock(HttpServletRequest.class);
         when(keyExtractor.extractClientKey(request)).thenReturn("127.0.0.1");
