@@ -1,5 +1,6 @@
 package com.example.pragmasoft.exercise.ratelimit;
 
+import com.example.pragmasoft.exercise.extractor.ClientKeyExtractor;
 import com.example.pragmasoft.exercise.ratelimit.dto.RateLimitError;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
@@ -15,22 +16,25 @@ import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Filter that applies rate limiting to incoming requests using the {@link RateLimitService}.
+ * Filter that applies rate limiting to incoming requests using the {@link RateLimiter}.
  */
 @Component
 public class RateLimitFilter extends OncePerRequestFilter {
 
-    private final RateLimitService rateLimitService;
+    private final RateLimiter<String> rateLimiter;
+    private final ClientKeyExtractor<String> keyExtractor;
     private final ObjectMapper objectMapper;
 
     private final long capacity;
     private final long refillPeriod;
 
-    public RateLimitFilter(RateLimitService rateLimitService,
+    public RateLimitFilter(RateLimiter<String> rateLimiter,
+                           ClientKeyExtractor<String> keyExtractor,
                            ObjectMapper objectMapper,
                            @Value("${rate.limit.capacity}") long capacity,
                            @Value("${rate.limit.refillPeriod}") long refillPeriod) {
-        this.rateLimitService = rateLimitService;
+        this.rateLimiter = rateLimiter;
+        this.keyExtractor = keyExtractor;
         this.objectMapper = objectMapper;
         this.capacity = capacity;
         this.refillPeriod = refillPeriod;
@@ -43,7 +47,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
-        if (rateLimitService.isAllowed(request)) {
+        String clientKey = keyExtractor.extractClientKey(request);
+
+        if (rateLimiter.tryAcquire(clientKey)) {
             filterChain.doFilter(request, response);
         } else {
             response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());

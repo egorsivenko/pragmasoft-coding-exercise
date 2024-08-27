@@ -1,8 +1,6 @@
 package com.example.pragmasoft.exercise.ratelimit;
 
 import com.example.pragmasoft.exercise.bucket.TokenBucket;
-import com.example.pragmasoft.exercise.extractor.ClientKeyExtractor;
-import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -18,7 +16,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * to manage memory usage effectively.
  */
 @Service
-public class RateLimitService {
+public class TokenBucketRateLimiter implements RateLimiter<String> {
 
     /**
      * In this implementation, a thread-safe ConcurrentHashMap is used to store token buckets
@@ -30,7 +28,6 @@ public class RateLimitService {
      * using the client key or authorization token for access.
      */
     private final ConcurrentHashMap<String, TokenBucket> tokenBuckets = new ConcurrentHashMap<>();
-    private final ClientKeyExtractor<String> keyExtractor;
 
     private final long capacity;
     private final Duration refillPeriod;
@@ -38,14 +35,11 @@ public class RateLimitService {
     /**
      * Constructs a new RateLimitService with the specified configuration values.
      *
-     * @param keyExtractor the component responsible for extracting client keys from requests
      * @param capacity     the maximum number of tokens each token bucket can hold
      * @param refillPeriod the time period in milliseconds after which tokens are added to the bucket
      */
-    public RateLimitService(ClientKeyExtractor<String> keyExtractor,
-                            @Value("${rate.limit.capacity}") long capacity,
-                            @Value("${rate.limit.refillPeriod}") long refillPeriod) {
-        this.keyExtractor = keyExtractor;
+    public TokenBucketRateLimiter(@Value("${rate.limit.capacity}") long capacity,
+                                  @Value("${rate.limit.refillPeriod}") long refillPeriod) {
         this.capacity = capacity;
         this.refillPeriod = Duration.ofMillis(refillPeriod);
     }
@@ -55,12 +49,11 @@ public class RateLimitService {
      * A token is consumed from the client's token bucket if available.
      * If the token bucket does not exist for the client, a new one is created.
      *
-     * @param request the HttpServletRequest to check
+     * @param clientKey the key that identifies each separate client
      * @return true if the request is allowed, false if the rate limit is exceeded
      */
-    public boolean isAllowed(HttpServletRequest request) {
-        String clientKey = keyExtractor.extractClientKey(request);
-
+    @Override
+    public boolean tryAcquire(String clientKey) {
         TokenBucket tokenBucket = tokenBuckets.computeIfAbsent(clientKey,
                 key -> new TokenBucket(capacity, refillPeriod));
         return tokenBucket.isAllowed();
@@ -68,8 +61,8 @@ public class RateLimitService {
 
     /**
      * Periodically cleans up stale token buckets that have not been used for a specified period of time.
-     * The method is invoked at fixed intervals and iterates through the {@link RateLimitService#tokenBuckets},
-     * removing entries where the time since the last request exceeds the {@link RateLimitService#refillPeriod}.
+     * The method is invoked at fixed intervals and iterates through the {@link TokenBucketRateLimiter#tokenBuckets},
+     * removing entries where the time since the last request exceeds the {@link TokenBucketRateLimiter#refillPeriod}.
      * This helps in managing memory usage and ensuring that the rate limiter
      * only retains relevant token buckets for active clients.
      */

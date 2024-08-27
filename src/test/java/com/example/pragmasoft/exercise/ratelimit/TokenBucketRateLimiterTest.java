@@ -1,8 +1,5 @@
 package com.example.pragmasoft.exercise.ratelimit;
 
-import com.example.pragmasoft.exercise.extractor.ClientKeyExtractor;
-import com.example.pragmasoft.exercise.extractor.RequestHeaderClientKeyExtractor;
-import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -21,68 +18,64 @@ import java.util.stream.IntStream;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 @SpringBootTest
 @ExtendWith(SpringExtension.class)
-class RateLimitServiceTest {
+class TokenBucketRateLimiterTest {
 
-    private RateLimitService rateLimitService;
-    private HttpServletRequest request;
+    private static final String TEST_CLIENT_KEY = "127.0.0.1";
+
+    private TokenBucketRateLimiter rateLimiter;
 
     @Value("${rate.limit.capacity}")
-    private int capacity;
+    private long capacity;
 
     @Value("${rate.limit.refillPeriod}")
     private long refillPeriod;
 
     @BeforeEach
     void setUp() {
-        ClientKeyExtractor<String> keyExtractor = mock(RequestHeaderClientKeyExtractor.class);
-        rateLimitService = new RateLimitService(keyExtractor, capacity, refillPeriod);
-        request = mock(HttpServletRequest.class);
-        when(keyExtractor.extractClientKey(request)).thenReturn("127.0.0.1");
+        rateLimiter = new TokenBucketRateLimiter(capacity, refillPeriod);
     }
 
     @Test
     void shouldAllowRequestWhenTokensAvailable() {
         for (int i = 0; i < capacity; i++) {
-            assertTrue(rateLimitService.isAllowed(request));
+            assertTrue(rateLimiter.tryAcquire(TEST_CLIENT_KEY));
         }
     }
 
     @Test
     void shouldBlockRequestWhenTokensDepleted() {
         for (int i = 0; i < capacity; i++) {
-            rateLimitService.isAllowed(request);
+            rateLimiter.tryAcquire(TEST_CLIENT_KEY);
         }
-        assertFalse(rateLimitService.isAllowed(request));
+        assertFalse(rateLimiter.tryAcquire(TEST_CLIENT_KEY));
     }
 
     @Test
     void shouldRefillTokensAfterRefillPeriod() throws InterruptedException {
         for (int i = 0; i < capacity; i++) {
-            rateLimitService.isAllowed(request);
+            rateLimiter.tryAcquire(TEST_CLIENT_KEY);
         }
         Thread.sleep(refillPeriod); // Simulate waiting for the refill period
 
         for (int i = 0; i < capacity; i++) {
-            assertTrue(rateLimitService.isAllowed(request));
+            assertTrue(rateLimiter.tryAcquire(TEST_CLIENT_KEY));
         }
     }
 
     @Test
     void shouldBlockRequestWhenTokensDepletedAfterRefill() throws InterruptedException {
         for (int i = 0; i < capacity; i++) {
-            rateLimitService.isAllowed(request);
+            rateLimiter.tryAcquire(TEST_CLIENT_KEY);
         }
         Thread.sleep(refillPeriod); // Simulate waiting for the refill period
 
         for (int i = 0; i < capacity; i++) {
-            rateLimitService.isAllowed(request);
+            rateLimiter.tryAcquire(TEST_CLIENT_KEY);
         }
-        assertFalse(rateLimitService.isAllowed(request));
+        assertFalse(rateLimiter.tryAcquire(TEST_CLIENT_KEY));
     }
 
     @Test
@@ -95,7 +88,7 @@ class RateLimitServiceTest {
         Runnable task = () -> {
             try {
                 barrier.await();  // Ensure all threads start at the same time
-                assertTrue(rateLimitService.isAllowed(request));
+                assertTrue(rateLimiter.tryAcquire(TEST_CLIENT_KEY));
             } catch (InterruptedException | BrokenBarrierException e) {
                 fail("Test was interrupted");
             } finally {
@@ -120,7 +113,7 @@ class RateLimitServiceTest {
         Runnable task = () -> {
             try {
                 barrier.await();  // Ensure all threads start at the same time
-                if (rateLimitService.isAllowed(request)) {
+                if (rateLimiter.tryAcquire(TEST_CLIENT_KEY)) {
                     successfulRequests.incrementAndGet();
                 }
             } catch (InterruptedException | BrokenBarrierException e) {
