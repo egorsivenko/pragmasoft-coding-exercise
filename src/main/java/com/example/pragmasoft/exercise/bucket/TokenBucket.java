@@ -17,13 +17,12 @@ public class TokenBucket {
 
     /**
      * Inner class representing the state of the token bucket.
-     * It includes the number of available tokens, the last refill time, and the last request time.
+     * Includes the number of available tokens and the last refill time.
      */
     private static final class State {
 
         private long availableTokens;
         private long lastRefillNanoTime;
-        private long lastRequestNanoTime;
     }
 
     /**
@@ -39,7 +38,6 @@ public class TokenBucket {
         State state = new State();
         state.availableTokens = capacity;
         state.lastRefillNanoTime = System.nanoTime();
-        state.lastRequestNanoTime = System.nanoTime();
 
         this.stateReference = new AtomicReference<>(state);
     }
@@ -57,7 +55,6 @@ public class TokenBucket {
             State previousState = stateReference.get();
             newState.availableTokens = previousState.availableTokens;
             newState.lastRefillNanoTime = previousState.lastRefillNanoTime;
-            newState.lastRequestNanoTime = previousState.lastRequestNanoTime;
             refillBucket(newState, now);
 
             if (newState.availableTokens < 1) {
@@ -65,7 +62,6 @@ public class TokenBucket {
             }
             newState.availableTokens -= 1;
             if (stateReference.compareAndSet(previousState, newState)) {
-                newState.lastRequestNanoTime = now;
                 return true;
             }
         }
@@ -90,11 +86,11 @@ public class TokenBucket {
     }
 
     /**
-     * Returns the timestamp of the last successful token consumption request in nanoseconds.
+     * Returns the timestamp of the last token bucket refill in nanoseconds.
      *
-     * @return the time in nanoseconds of the last request that successfully consumed a token
+     * @return the time in nanoseconds of the last token bucket refill
      */
-    public long getLastRequestNanoTime() {
-        return stateReference.get().lastRequestNanoTime;
+    public long getLastRefillNanoTime() {
+        return stateReference.get().lastRefillNanoTime;
     }
 }

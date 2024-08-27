@@ -9,7 +9,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Service for handling rate limiting using the token bucket algorithm.
@@ -35,24 +34,20 @@ public class RateLimitService {
 
     private final long capacity;
     private final Duration refillPeriod;
-    private final long expirationNanoTime;
 
     /**
      * Constructs a new RateLimitService with the specified configuration values.
      *
-     * @param keyExtractor   the component responsible for extracting client keys from requests
-     * @param capacity       the maximum number of tokens each token bucket can hold
-     * @param refillPeriod   the time period in milliseconds after which tokens are added to the bucket
-     * @param expirationTime the time in milliseconds after which unused token buckets are considered stale and removed
+     * @param keyExtractor the component responsible for extracting client keys from requests
+     * @param capacity     the maximum number of tokens each token bucket can hold
+     * @param refillPeriod the time period in milliseconds after which tokens are added to the bucket
      */
     public RateLimitService(RequestHeaderClientKeyExtractor keyExtractor,
                             @Value("${rate.limit.capacity}") long capacity,
-                            @Value("${rate.limit.refillPeriod}") long refillPeriod,
-                            @Value("${rate.limit.expirationTime}") long expirationTime) {
+                            @Value("${rate.limit.refillPeriod}") long refillPeriod) {
         this.keyExtractor = keyExtractor;
         this.capacity = capacity;
         this.refillPeriod = Duration.ofMillis(refillPeriod);
-        this.expirationNanoTime = TimeUnit.MILLISECONDS.toNanos(expirationTime);
     }
 
     /**
@@ -74,17 +69,17 @@ public class RateLimitService {
     /**
      * Periodically cleans up stale token buckets that have not been used for a specified period of time.
      * The method is invoked at fixed intervals and iterates through the {@link RateLimitService#tokenBuckets},
-     * removing entries where the time since the last request exceeds the {@link RateLimitService#expirationNanoTime}.
+     * removing entries where the time since the last request exceeds the {@link RateLimitService#refillPeriod}.
      * This helps in managing memory usage and ensuring that the rate limiter
      * only retains relevant token buckets for active clients.
      */
-    @Scheduled(fixedDelayString = "${rate.limit.cleanupInterval}")
+    @Scheduled(fixedDelayString = "${rate.limit.refillPeriod}")
     public void cleanupStaleBuckets() {
         long currentNanoTime = System.nanoTime();
 
         tokenBuckets.entrySet().removeIf(entry -> {
             TokenBucket bucket = entry.getValue();
-            return currentNanoTime - bucket.getLastRequestNanoTime() > expirationNanoTime;
+            return currentNanoTime - bucket.getLastRefillNanoTime() > refillPeriod.toNanos();
         });
     }
 }
