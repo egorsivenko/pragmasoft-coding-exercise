@@ -6,8 +6,11 @@ import org.springframework.stereotype.Service;
 import org.zalando.problem.Problem;
 
 import java.time.Duration;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.zalando.problem.Status.TOO_MANY_REQUESTS;
@@ -30,7 +33,7 @@ public class TokenBucketRateLimiter implements RateLimiter<String> {
      * statistics, including the number of available tokens, the last refill and request time,
      * using the client key or authorization token for access.
      */
-    private final LinkedHashMap<String, TokenBucket> tokenBuckets;
+    private final Map<String, TokenBucket> tokenBuckets;
 
     private final long capacity;
     private final Duration refillPeriod;
@@ -45,13 +48,27 @@ public class TokenBucketRateLimiter implements RateLimiter<String> {
                                   @Value("${rate.limit.refillPeriod}") long refillPeriod) {
         this.capacity = capacity;
         this.refillPeriod = Duration.ofMillis(refillPeriod);
-        this.tokenBuckets = new LinkedHashMap<>() {
+        this.tokenBuckets = Collections.synchronizedMap(new LinkedHashMap<>() {
             @Override
             protected boolean removeEldestEntry(Map.Entry<String, TokenBucket> eldest) {
-                TokenBucket bucket = eldest.getValue();
-                return System.nanoTime() - bucket.getLastRefillNanoTime() > TimeUnit.MILLISECONDS.toNanos(refillPeriod);
+                Set<Map.Entry<String, TokenBucket>> entries = entrySet();
+
+                synchronized (this) {
+                    Iterator<Map.Entry<String, TokenBucket>> iterator = entries.iterator();
+                    long removalThreshold = System.nanoTime() - TimeUnit.MILLISECONDS.toNanos(refillPeriod);
+
+                    while (iterator.hasNext()) {
+                        TokenBucket bucket = iterator.next().getValue();
+                        if (bucket.getLastRefillNanoTime() < removalThreshold) {
+                            iterator.remove();
+                        } else {
+                            break;
+                        }
+                    }
+                }
+                return false;
             }
-        };
+        });
     }
 
     /**
