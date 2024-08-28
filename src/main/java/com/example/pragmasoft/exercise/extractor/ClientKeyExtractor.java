@@ -9,6 +9,7 @@ import jakarta.servlet.http.HttpServletRequest;
  *
  * @param <T> the type of the key that will be extracted from the request
  */
+@FunctionalInterface
 public interface ClientKeyExtractor<T> {
 
     /**
