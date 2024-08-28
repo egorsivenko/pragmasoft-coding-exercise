@@ -1,11 +1,13 @@
 package com.example.pragmasoft.exercise.ratelimit;
 
+import com.example.pragmasoft.exercise.ratelimiter.TokenBucketRateLimiter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.zalando.problem.ThrowableProblem;
 
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
@@ -15,8 +17,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.fail;
 
 @SpringBootTest
@@ -41,7 +44,7 @@ class TokenBucketRateLimiterTest {
     @Test
     void shouldAllowRequestWhenTokensAvailable() {
         for (int i = 0; i < capacity; i++) {
-            assertTrue(rateLimiter.tryAcquire(TEST_CLIENT_KEY));
+            assertDoesNotThrow(() -> rateLimiter.tryAcquire(TEST_CLIENT_KEY));
         }
     }
 
@@ -50,7 +53,7 @@ class TokenBucketRateLimiterTest {
         for (int i = 0; i < capacity; i++) {
             rateLimiter.tryAcquire(TEST_CLIENT_KEY);
         }
-        assertFalse(rateLimiter.tryAcquire(TEST_CLIENT_KEY));
+        assertThrows(ThrowableProblem.class, () -> rateLimiter.tryAcquire(TEST_CLIENT_KEY));
     }
 
     @Test
@@ -61,7 +64,7 @@ class TokenBucketRateLimiterTest {
         Thread.sleep(refillPeriod); // Simulate waiting for the refill period
 
         for (int i = 0; i < capacity; i++) {
-            assertTrue(rateLimiter.tryAcquire(TEST_CLIENT_KEY));
+            assertDoesNotThrow(() -> rateLimiter.tryAcquire(TEST_CLIENT_KEY));
         }
     }
 
@@ -75,7 +78,7 @@ class TokenBucketRateLimiterTest {
         for (int i = 0; i < capacity; i++) {
             rateLimiter.tryAcquire(TEST_CLIENT_KEY);
         }
-        assertFalse(rateLimiter.tryAcquire(TEST_CLIENT_KEY));
+        assertThrows(ThrowableProblem.class, () -> rateLimiter.tryAcquire(TEST_CLIENT_KEY));
     }
 
     @Test
@@ -88,7 +91,7 @@ class TokenBucketRateLimiterTest {
         Runnable task = () -> {
             try {
                 barrier.await();  // Ensure all threads start at the same time
-                assertTrue(rateLimiter.tryAcquire(TEST_CLIENT_KEY));
+                assertDoesNotThrow(() -> rateLimiter.tryAcquire(TEST_CLIENT_KEY));
             } catch (InterruptedException | BrokenBarrierException e) {
                 fail("Test was interrupted");
             } finally {
@@ -113,8 +116,11 @@ class TokenBucketRateLimiterTest {
         Runnable task = () -> {
             try {
                 barrier.await();  // Ensure all threads start at the same time
-                if (rateLimiter.tryAcquire(TEST_CLIENT_KEY)) {
+                try {
+                    rateLimiter.tryAcquire(TEST_CLIENT_KEY);
                     successfulRequests.incrementAndGet();
+                } catch (ThrowableProblem problem) {
+                    fail("Test was interrupted");
                 }
             } catch (InterruptedException | BrokenBarrierException e) {
                 fail("Test was interrupted");
@@ -128,7 +134,7 @@ class TokenBucketRateLimiterTest {
         latch.await();  // Wait for all threads to finish
         executor.shutdown();
 
-        // Ensure the number of successful requests does not exceed the bucket capacity
-        assertTrue(successfulRequests.get() <= capacity);
+        // Ensure the number of successful requests equals the bucket capacity
+        assertEquals(successfulRequests.get(), capacity);
     }
 }

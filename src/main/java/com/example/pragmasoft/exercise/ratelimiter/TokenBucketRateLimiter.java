@@ -1,13 +1,16 @@
-package com.example.pragmasoft.exercise.ratelimit;
+package com.example.pragmasoft.exercise.ratelimiter;
 
 import com.example.pragmasoft.exercise.bucket.TokenBucket;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.zalando.problem.Problem;
 
 import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+
+import static org.zalando.problem.Status.TOO_MANY_REQUESTS;
 
 /**
  * Service for handling rate limiting using the token bucket algorithm.
@@ -57,12 +60,19 @@ public class TokenBucketRateLimiter implements RateLimiter<String> {
      * If the token bucket does not exist for the client, a new one is created.
      *
      * @param clientKey the key that identifies each separate client
-     * @return true if the request is allowed, false if the rate limit is exceeded
      */
     @Override
-    public synchronized boolean tryAcquire(String clientKey) {
+    public synchronized void tryAcquire(String clientKey) {
         TokenBucket tokenBucket = tokenBuckets.computeIfAbsent(clientKey,
                 key -> new TokenBucket(capacity, refillPeriod));
-        return tokenBucket.isAllowed();
+        if (!tokenBucket.isAllowed()) {
+            throw Problem.builder()
+                    .withTitle("Rate Limit Exceeded")
+                    .withStatus(TOO_MANY_REQUESTS)
+                    .withDetail("Exceeded the maximum number of requests. Try again later.")
+                    .with("requests_number", capacity)
+                    .with("wait_seconds", refillPeriod.toSeconds())
+                    .build();
+        }
     }
 }

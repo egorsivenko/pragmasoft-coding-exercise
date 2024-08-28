@@ -1,19 +1,18 @@
-package com.example.pragmasoft.exercise.ratelimit;
+package com.example.pragmasoft.exercise.filter;
 
 import com.example.pragmasoft.exercise.extractor.ClientKeyExtractor;
-import com.example.pragmasoft.exercise.ratelimit.dto.RateLimitError;
+import com.example.pragmasoft.exercise.ratelimiter.RateLimiter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.zalando.problem.ThrowableProblem;
 
 import java.io.IOException;
-import java.util.concurrent.TimeUnit;
+import java.util.Objects;
 
 /**
  * Filter that applies rate limiting to incoming requests using the {@link RateLimiter}.
@@ -25,19 +24,12 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private final ClientKeyExtractor<String> keyExtractor;
     private final ObjectMapper objectMapper;
 
-    private final long capacity;
-    private final long refillPeriod;
-
     public RateLimitFilter(RateLimiter<String> rateLimiter,
                            ClientKeyExtractor<String> keyExtractor,
-                           ObjectMapper objectMapper,
-                           @Value("${rate.limit.capacity}") long capacity,
-                           @Value("${rate.limit.refillPeriod}") long refillPeriod) {
+                           ObjectMapper objectMapper) {
         this.rateLimiter = rateLimiter;
         this.keyExtractor = keyExtractor;
         this.objectMapper = objectMapper;
-        this.capacity = capacity;
-        this.refillPeriod = refillPeriod;
     }
 
     /**
@@ -48,24 +40,15 @@ public class RateLimitFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
         String clientKey = keyExtractor.extractClientKey(request);
-
-        if (rateLimiter.tryAcquire(clientKey)) {
+        try {
+            rateLimiter.tryAcquire(clientKey);
             filterChain.doFilter(request, response);
-        } else {
-            response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
+        } catch (ThrowableProblem problem) {
+            response.setStatus(Objects.requireNonNull(problem.getStatus()).getStatusCode());
             response.setContentType("application/json");
+            response.setHeader("Retry-After", String.valueOf(problem.getParameters().get("wait_seconds")));
 
-            long secondsToWait = TimeUnit.MILLISECONDS.toSeconds(refillPeriod);
-            response.setHeader("Retry-After", String.valueOf(secondsToWait));
-
-            RateLimitError error = new RateLimitError(
-                    "rate_limit_exceeded",
-                    String.format(
-                            "Exceeded the maximum number of requests - %d requests per %d seconds. Try again later.",
-                            capacity, secondsToWait
-                    )
-            );
-            response.getWriter().write(objectMapper.writeValueAsString(error));
+            response.getWriter().write(objectMapper.writeValueAsString(problem));
             response.getWriter().flush();
         }
     }
