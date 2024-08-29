@@ -18,10 +18,8 @@ $ git clone https://github.com/egorsivenko/pragmasoft-coding-exercise.git
 ### Step 2: Configure Application Properties
 Customize the rate limiter by setting the following properties in `application.properties`:
 ```
-rate.limit.capacity=100           # Maximum number of tokens in each bucket
-rate.limit.refillPeriod=10000     # Refill period in milliseconds
-rate.limit.expirationTime=60000   # Time in milliseconds before an unused bucket is removed
-rate.limit.cleanupInterval=30000  # Interval in milliseconds for cleaning up stale buckets
+rate.limit.capacity=10           # Maximum number of tokens in each bucket
+rate.limit.refillPeriod=1000     # Refill period in milliseconds
 ```
 
 ### Step 3: Running the Application
@@ -37,8 +35,11 @@ curl http://localhost:8080/hello
 - If the rate limit is exceeded, the server responds with a `429 Too Many Requests` status code and a JSON error message:
 ```
 {
-  "error": "rate_limit_exceeded",
-  "message": "Exceeded the maximum number of requests - 100 requests per 10 seconds. Try again later."
+    "title": "Rate Limit Exceeded",
+    "status": 429,
+    "detail": "Exceeded the maximum number of requests. Try again later.",
+    "requests_number": 10,
+    "wait_seconds": 1
 }
 ```
 
