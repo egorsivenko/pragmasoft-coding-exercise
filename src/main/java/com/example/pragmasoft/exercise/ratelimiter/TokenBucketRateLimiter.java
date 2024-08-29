@@ -4,6 +4,7 @@ import com.example.pragmasoft.exercise.bucket.TokenBucket;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.zalando.problem.Problem;
+import org.zalando.problem.ThrowableProblem;
 
 import java.time.Duration;
 import java.util.Collections;
@@ -16,11 +17,10 @@ import java.util.concurrent.TimeUnit;
 import static org.zalando.problem.Status.TOO_MANY_REQUESTS;
 
 /**
- * Service for handling rate limiting using the token bucket algorithm.
+ * Implementation of {@link RateLimiter} interface using the token bucket algorithm.
  * This service manages multiple token buckets, one for each client, identified by a unique key.
  * The service ensures that requests are allowed or denied based on the availability of tokens
- * in the client's token bucket. It also includes a mechanism for cleaning up stale buckets
- * to manage memory usage effectively.
+ * in the client's token bucket.
  */
 @Service
 public class TokenBucketRateLimiter implements RateLimiter<String> {
@@ -39,7 +39,7 @@ public class TokenBucketRateLimiter implements RateLimiter<String> {
     private final Duration refillPeriod;
 
     /**
-     * Constructs a new RateLimitService with the specified configuration values.
+     * Constructs a new {@code TokenBucketRateLimiter} with the specified configuration values.
      *
      * @param capacity     the maximum number of tokens each token bucket can hold
      * @param refillPeriod the time period in milliseconds after which tokens are added to the bucket
@@ -72,11 +72,13 @@ public class TokenBucketRateLimiter implements RateLimiter<String> {
     }
 
     /**
-     * Determines if a request is allowed based on the client's rate limit.
+     * Attempts to acquire a token for the specified client key.
      * A token is consumed from the client's token bucket if available.
      * If the token bucket does not exist for the client, a new one is created.
+     * If no tokens are available, a {@code ThrowableProblem} exception is thrown.
      *
      * @param clientKey the key that identifies each separate client
+     * @throws ThrowableProblem if the rate limit is exceeded
      */
     @Override
     public synchronized void tryAcquire(String clientKey) {
